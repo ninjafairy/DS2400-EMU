@@ -1,6 +1,6 @@
 
-byte ESN[] = {1, 133, 100, 196, 27, 0, 0, 142};
-
+byte ESN[] = {1, 133, 100, 196, 27, 0, 0, 142};  // I have the dumb with bit significance index 0 holds the family code LSB
+//                                               // when changing the ESN place bytes L to R: Family code, S/N, CRC
 void setup() {
   DDRB = DDRB | B00000000;        // B-PORT to all inputs 0x00 mask doesnt change anything but still required to function?
   PORTB = PORTB | B00000001;      // PB0 (pin 8) PULLUP resistor on.
@@ -18,7 +18,7 @@ void loop() {
       while (!PINB & B00000001){      //pause while pin is LOW
         delayMicroseconds(1); 
       }
-      unsigned long time1 = micros();               //timestamp when pin goes HIGH
+      unsigned long time1 = micros(); //timestamp when pin goes HIGH
       if (time0 - time1 > 200){       //if pulse was longer than 200uS
         resetPulse = true;            //flag resetPulse true to break out of scanning loop
       }
@@ -71,9 +71,4 @@ void sendRom(void) {
       PORTD = B00000000;
     }
   }
-}
-
-void printBin(byte aByte) {
-  for (int8_t aBit = 7; aBit >= 0; aBit--)
-    Serial.write(bitRead(aByte, aBit) ? '1' : '0');
 }
