@@ -1,74 +1,89 @@
-
-byte ESN[] = {1, 133, 100, 196, 27, 0, 0, 142};  // I have the dumb with bit significance index 0 holds the family code LSB
-//                                               // when changing the ESN place bytes L to R: Family code, S/N, CRC
+// DS2400 Emulator by Squoril 9/28/2024
+byte ESN[] = {142, 0, 0, 27, 196, 100, 133, 1};   //64bit ROM contents
 void setup() {
   DDRB = DDRB | B00000000;        // B-PORT to all inputs 0x00 mask doesnt change anything but still required to function?
   PORTB = PORTB | B00000001;      // PB0 (pin 8) PULLUP resistor on.
-  DDRD = DDRD | B00000100;        // PD2 (pin 2) OUTPUT
-  PORTD = B00000000;              // D-PORT all pins LOW
 }
 
 void loop() {
 
-// RESET PULSE DETECTION ----------------------------------------------------------------------------------------
-  bool resetPulse = false;
-  while (resetPulse == false){        //scanning for the reset pulse
+// RESET PULSE DETECTION ----------------------------------------------------------------------------------------  Uses PB0 as input
+  while (true){                       //scanning for the reset pulse
     if (!PINB & B00000001){           //when target pin goes LOW begin timing LOW pulse
-      unsigned long time0 = micros();               //timestamp of detected LOW
-      while (!PINB & B00000001){      //pause while pin is LOW
-        delayMicroseconds(1); 
-      }
-      unsigned long time1 = micros(); //timestamp when pin goes HIGH
-      if (time0 - time1 > 200){       //if pulse was longer than 200uS
-        resetPulse = true;            //flag resetPulse true to break out of scanning loop
-      }
+      unsigned long time0 = micros(); //timestamp of detected LOW
+      waitForHigh();
+      if (time0 - micros() > 200){       //if pulse was longer than 200uS
+        break;}
     }
   }
+  delayMicroseconds(50);    // can this be removed?
 
-// COMMAND BYTE RECIEVING AND DECODING -------------------------------------------------------------------------
+// PRESENSE PULSE RESPONSE -------------------------------------------------------------------------------------  Uses PB2 as output
+
+    DDRD = DDRD | B00000100;        //PD2 set to OUTPUT and defaults to LOW beginning presence pulse
+    delayMicroseconds(150);
+    DDRD = DDRD ^ B00000100;        //Reset PD2 to input high impedance so it doesnt hold high
+    delayMicroseconds(150);
+
+// COMMAND BYTE RECIEVING --------------------------------------------------------------------------------------  Uses PB0 as input
   byte romCommand;
-  for (int i = 0; i < 8; i++){        //index counter for building the command byte
+  unsigned long decodeTime = micros();
+  unsigned long timestamp[16];
+  for (int i = 0; i < 8; i++){                    //index counter for building the command byte
     unsigned long time0;
-    while (PINB & B00000001){                     //wait for the pin to get pulled LOW
-      time0 = micros();               //set timestamp once LOW
-    }                  
-    while (!PINB & B00000001){                    //pause till pin goes HIGH again
-      delayMicroseconds(1);
-    }
-     unsigned long time1 = micros() - time0;         //calculate pulse time (better than setting a second timestamp first?)           
-    if (time1 < 30){                  //if it stayed LOW for less than 30uS its a 1
-      bitWrite(romCommand, i, 1);     //set bit and index to 1
-      delayMicroseconds(100-time1);   //get close to the 120uS cycle time
-    }
-    else {
-      bitWrite(romCommand, i, 0);     //else its a 0 
-    }
+    int pointer = i*2;
+    waitForLow();
+    timestamp[pointer] = micros();
+    waitForHigh();
+    timestamp[pointer+1] = micros();
   }
 
-  if (romCommand == 0x33){
-    sendRom();
-    // Serial.println("\n0x33 Detected!!");
+// COMMAND BYTE DECODING ---------------------------------------------------------------------------------------
+  for (int i = 1; i < 16; i=i+2){             //start and end timestamps and step forward by 2 since 16 timestamps for 8 pulses starts and stops
+    if ((timestamp[i]-timestamp[i-1])>50){    //i is end timestamp, subtract i-1 timestamp to get pulse width 
+      bitWrite(romCommand, ((i-1)/2), 0);}
+    else {
+      bitWrite(romCommand, ((i-1)/2), 1);}
   }
-  else if(romCommand == 0x0F){
-    sendRom();
-    // Serial.println("\n0x0F Detected!!");
+
+// COMMAND SWITCH ----------------------------------------------------------------------------------------------
+  if(romCommand == 0xF0){
+    searchRom();
   } 
 }
 
-void sendRom(void) {
-  for (int bite = 0; bite < 8  ; bite++){
-    for (int bitt = 0; bitt < 8; bitt++){
-      while(PINB){
-        delayMicroseconds(1);
-      }
-      while(!PINB){
-        delayMicroseconds(1);
-      }
-      if (bitRead(ESN[bite], bitt)){
-        PORTD = B00000100;
-      }
-      delayMicroseconds(60);
-      PORTD = B00000000;
+
+void waitForLow(void){
+  while (PINB & B00000001){}                   //pause while PB0 is HIGH
+}
+
+void waitForHigh(void){
+  while (!PINB & B00000001){}                  //pause while PB0 is LOW
+}
+
+void pullLowForZero(void){
+  DDRD = DDRD | B00000100;        //PB2 set to OUTPUT and defaults to LOW beginning Bit = 0 pulse
+  delayMicroseconds(35);
+  DDRD = DDRD ^ B00000100;        //Reset PB2 to input high impedance so it doesnt hold high but is allowed to be pulled up
+  delayMicroseconds(5);           //safety delay might be able to remove
+}
+
+void searchRom(void){
+
+  for (int i=7; i>=0; i--){                                 //Index for ESN[] bytes
+    for (byte mask = 00000001; mask>0; mask <<= 1){         //Index mask for bits out of selected ESN[] byte
+      waitForLow();                                         //Wait for read pulse from master                             DS2401 Tx BitN
+      if(ESN[i] & mask){                                    //If current bit is a one
+        delayMicroseconds(10);}                             //Do not pull low for Zero Wait for read pulse to pass
+      else{                                                 //It current bit wasnt a one
+        pullLowForZero();}
+      waitForLow();                                         //Wait for read pulse from master                             DS2401 Tx !BitN
+      if(ESN[i] & mask){                                    //If current bit is a one
+        pullLowForZero();}                                  //Send a Zero since were in the complement stage
+      else{
+        delayMicroseconds(10);}                             //Do not pull low for Zero Wait for read pulse to pass
+      waitForLow();                                         //Absorbing the Master Tx BitN                                Master Tx BitN
+      waitForHigh();                                        //Incompatible with multiple 1-wire units now
     }
   }
 }
