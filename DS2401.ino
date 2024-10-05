@@ -41,9 +41,9 @@ void searchRom(void){
 }
 	
 int main(void){
-	//CLKMSR = 0;											//Defaults to 0 for internal 8mhz occilator?
-	CLKPSR = 0;												//Set /1 prescaler for max CPU speed on internal oscillator, Source clock = 8Mhz clkCPU = 8Mhz
-	TCCR0B = 0x2;											//Set /8 prescaler timer0 now counts 1us per tick            Timer0 clock = 1Mhz
+	//CLKMSR = 0;												//Defaults to 0 for internal 8mhz occilator?
+	CLKPSR = 0;													//Set /1 prescaler for max CPU speed on internal oscillator, Source clock = 8Mhz clkCPU = 8Mhz
+	TCCR0B = 0x2;												//Set /8 prescaler timer0 now counts 1us per tick            Timer0 clock = 1Mhz
 		
     while (1) 
     {
@@ -81,7 +81,7 @@ int main(void){
 			searchRom();
 		}
 	}
-	// END OF LOOP -------------------------------------------------------------------------------------------------
+// END OF LOOP -------------------------------------------------------------------------------------------------
 }
 
 
