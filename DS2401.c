@@ -7,11 +7,13 @@
 uint8_t ESN[] = {142, 0, 0, 27, 196, 100, 133, 1};				//64bit ROM contents
 	
 void waitForLow(void){
-	while (PINB & PB0){}										//pause while PB0 is HIGH
+	while (PINB & PB0){
+	}										//pause while PB0 is HIGH
 }
 
 void waitForHigh(void){
-	while (!PINB & PB0){}										//pause while PB0 is LOW
+	while (!PINB & PB0){
+	}										//pause while PB0 is LOW
 }
 
 void pullLowForZero(void){
@@ -26,14 +28,18 @@ void searchRom(void){
 		for (uint8_t mask = 1; mask>0; mask <<= 1){             //Index mask for bits out of selected ESN[] byte
 			waitForLow();                                       //Wait for read pulse from master                             DS2401 Tx BitN
 			if(ESN[i] & mask){                                  //If current bit is a one
-			_delay_us(10);}                                     //Do not pull low for Zero Wait for read pulse to pass
+				_delay_us(10);									//Do not pull low for Zero Wait for read pulse to pass
+			}                                     
 			else{                                               //It current bit wasnt a one
-			pullLowForZero();}
+				pullLowForZero();
+			}
 			waitForLow();                                       //Wait for read pulse from master                             DS2401 Tx !BitN
 			if(ESN[i] & mask){                                  //If current bit is a one
-			pullLowForZero();}                                  //Send a Zero since were in the complement stage
+				pullLowForZero();								//Send a Zero since were in the complement stage
+			}                                  
 			else{
-			_delay_us(10);}                                     //Do not pull low for Zero Wait for read pulse to pass
+				_delay_us(10);									//Do not pull low for Zero Wait for read pulse to pass
+			}                                     
 			waitForLow();                                       //Absorbing the Master Tx BitN                                Master Tx BitN device select
 			waitForHigh();                                      //Incompatible with multiple 1-wire units now
 		}
@@ -54,7 +60,8 @@ int main(void){
 				uint16_t time0 = TCNT0;                         //timestamp of detected LOW, TCNT0 atomic reads the high/low bytes of the timer, 65ms overflow
 				waitForHigh();
 				if (TCNT0 - time0 > 200){                       //if pulse was longer than 200uS 8mhz /8 prescale 1 tick = 1us nominal ~480us
-				break;}
+					break;
+				}
 			}
 		}
 		_delay_us(50);                                          //Delay between end of reset pulse and presence pulse
