@@ -12,6 +12,12 @@ void debug(){
 	PORTB &= ~(1 << 2);
 }
 
+void absorb(){
+	debug();
+	_delay_us(2);
+	debug();
+}
+
 void heartBeat(){				//	L	H
 	PORTB |= 1 << 2;			//	 -->|		1uS
 	_delay_us(1);				//		|
@@ -38,8 +44,8 @@ void waitForHigh(void){
 
 void pullLowForZero(void){
 	DDRB |= 1 << PB0m;											//PB0 set to OUTPUT and defaults to LOW beginning presence pulse
-	debug();
-	_delay_us(35);
+	//debug();
+	_delay_us(50);
 	DDRB &= ~(1 << PB0m);										//Reset PB0 to input high impedance so it doesnt hold high and can be used as input again
 	_delay_us(5);
 }
@@ -47,12 +53,13 @@ void pullLowForZero(void){
 void searchRom(void){
 	for (int i=7; i>=0; i--){									//Index for ESN[] bytes
 		for (uint8_t mask = 1; mask>0; mask <<= 1){             //Index mask for bits out of selected ESN[] byte
+			debug();
 			waitForLow();                                       //Wait for read pulse from master  ~8uS long                  DS2401 Tx BitN
-			if(~(ESN[i] & mask)){                               //If current bit is a one
-				pullLowForZero();								
-			}
-			else{                                               //It current bit wasn't a one
+			if((ESN[i] & mask)){                                //If current bit is a one
 				_delay_us(15);									//Do not pull low for Zero Wait for read pulse to pass
+			}
+			else{     
+				pullLowForZero();								//It current bit wasn't a one								
 			}
 			waitForLow();                                       //Wait for read pulse from master                             DS2401 Tx !BitN
 			if(ESN[i] & mask){                                  //If current bit is a one
@@ -61,7 +68,10 @@ void searchRom(void){
 			else{
 				_delay_us(15);									//Do not pull low for Zero Wait for read pulse to pass
 			}
+			_delay_us(1);
 			waitForLow();                                       //Absorbing the Master Tx BitN                                Master Tx BitN device select
+			//_delay_us(2);
+			//absorb();
 			waitForHigh();                                      //Incompatible with multiple 1-wire units now
 		}
 	}
@@ -82,21 +92,21 @@ int main(void){
 			if (!PINB & PB0pin){                                   //when target pin goes LOW begin timing LOW pulse
 				TCNT0 = 0;                                      //reset Timer0 to 0, 8Mhz Attiny with /8 prescale will be 1us per tick
 				uint16_t time0 = TCNT0;                         //timestamp of detected LOW, TCNT0 atomic reads the high/low bytes of the timer, 65ms overflow
-				debug();
+				//debug();
 				waitForHigh();
 				if (TCNT0 - time0 > 200){                       //if pulse was longer than 200uS 8mhz /8 prescale 1 tick = 1us nominal ~480us
-					heartBeat();
 					break;
 				}
 			}
 		}
-		_delay_us(50);                                          //Delay between end of reset pulse and presence pulse
+		_delay_us(15);                                          //Delay between end of reset pulse and presence pulse
 
 		// PRESENSE PULSE RESPONSE -------------------------------------------------------------------------------------  Uses PB0 as output
 		DDRB |= 1 << PB0m;                                      //PB0 set to OUTPUT and defaults to LOW beginning presence pulse
-		_delay_us(150);
+		heartBeat();
+		_delay_us(222);
 		DDRB &= ~(1 << PB0m);                                   //Reset PB0 to input high impedance so it doesnt hold high and can be used as input again
-		_delay_us(150);
+		_delay_us(10);
 
 		// COMMAND BYTE READ -------------------------------------------------------------------------------------------  Uses PB0 as input
 		uint8_t romCommand = 0;
@@ -108,7 +118,7 @@ int main(void){
 				romCommand |= 1 << i;                           //Below threshold, set i index bit of command byte
 			}
 		}
-
+	heartBeat();
 		// COMMAND SWITCH ----------------------------------------------------------------------------------------------
 		if(romCommand == 0xF0){                                 //0xF0 SearchRom,  0X33 ReadRom, 0x0F legacy ReadRom for the 2400
 			searchRom();
